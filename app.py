@@ -851,7 +851,7 @@ def main() -> None:
                     "Single_Listing_A_images"
                 ]:
                     if key in st.session_state:
-                        del st.session_state[key]
+                        st.session_state[key] = "" if "text" in key else []
                 # 清除分析结果
                 if "single_analysis_result" in st.session_state:
                     del st.session_state["single_analysis_result"]
