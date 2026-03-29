@@ -45,6 +45,20 @@ def _get_model() -> str:
         return os.getenv("OLLAMA_MODEL", "llama3.3:is6620")
 
 
+def get_default_model() -> str:
+    """
+    获取默认模型名称（公开接口）
+
+    根据当前 LLM 提供商返回对应的默认模型:
+    - Groq: llama-3.3-70b-versatile
+    - Ollama: llama3.3:is6620
+
+    Returns:
+        模型名称字符串
+    """
+    return _get_model()
+
+
 def _prompt_to_messages(prompt: str, system_prompt: Optional[str] = None) -> list:
     """
     将 prompt 字符串转换为 messages 格式

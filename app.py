@@ -42,6 +42,7 @@ init_db()
 from auth import StreamlitAuthManager, init_auth
 from comparer import compare_listings, summarize_comparison
 from extractor import extract_listing_info, generate_follow_up_questions, generate_listing_name
+from llm_utils import get_default_model
 from models import AnalysisResult, ListingRecord
 from ocr_utils import extract_text_from_image_bytes
 from rules import run_hybrid_analysis, run_rule_checks
@@ -58,10 +59,14 @@ init_auth()
 def analyze_listing(
     text_inputs: Dict[str, str],
     image_files: List,
-    model_name: str,
+    model_name: str = None,
     lang: str = None,
 ) -> AnalysisResult:
     """分析房源（使用混合智能）"""
+    # 使用默认模型（如果未指定）
+    if model_name is None:
+        model_name = get_default_model()
+
     ocr_texts: List[str] = []
     for image_file in image_files:
         if image_file is None:
@@ -101,7 +106,7 @@ def render_analysis(
     result: AnalysisResult,
     show_save: bool = True,
     user_id: Optional[str] = None,
-    model_name: str = "llama3.3:is6620"
+    model_name: str = None
 ) -> None:
     """渲染分析结果 - 渐进式加载版本"""
     import time
@@ -768,7 +773,7 @@ def main() -> None:
             user_id = None
 
         st.markdown("---")
-        model_name = st.text_input("LLM model", value="llama3.3:is6620")
+        model_name = st.text_input("LLM model", value=get_default_model())
 
         if user_id:
             st.markdown("---")
