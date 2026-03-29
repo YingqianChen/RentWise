@@ -843,15 +843,23 @@ def main() -> None:
         with col2:
             if st.button("🗑️ 清除输入", key="btn_clear_single"):
                 # 清除所有输入框（包括文本和文件）
-                for key in [
+                text_keys = [
                     "Single_Listing_A_listing_text",
                     "Single_Listing_A_chat_text",
                     "Single_Listing_A_note_text",
+                ]
+                file_keys = [
                     "Single_Listing_A_txt_files",
                     "Single_Listing_A_images"
-                ]:
+                ]
+                # 文本框设置为空字符串
+                for key in text_keys:
                     if key in st.session_state:
-                        st.session_state[key] = "" if "text" in key else []
+                        st.session_state[key] = ""
+                # 文件上传器需要删除 key（不能设置为空列表）
+                for key in file_keys:
+                    if key in st.session_state:
+                        del st.session_state[key]
                 # 清除分析结果
                 if "single_analysis_result" in st.session_state:
                     del st.session_state["single_analysis_result"]
