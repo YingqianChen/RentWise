@@ -292,10 +292,15 @@ def render_analysis(
                     )
                     try:
                         saved = repo.create_listing(record)
-                        st.success(f"{t('save_success')}: '{saved.name}'")
+                        st.session_state["save_success_msg"] = f"{t('save_success')}: '{saved.name}'"
                         st.rerun()
                     except Exception as e:
                         st.error(f"{t('save_fail')}: {e}")
+
+                # 显示保存成功消息（rerun 后）
+                if "save_success_msg" in st.session_state:
+                    st.success(st.session_state["save_success_msg"])
+                    del st.session_state["save_success_msg"]
 
     st.markdown(f"**{t('ocr_text')}**")
     if result.ocr_texts:
