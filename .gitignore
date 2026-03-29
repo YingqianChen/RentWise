@@ -53,3 +53,9 @@ Thumbs.db
 
 # OCR 模型缓存
 .EasyOCR/
+
+# 课程材料（包含敏感信息）
+lab material/
+
+# Claude Code 配置
+.claude/
