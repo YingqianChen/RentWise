@@ -1,8 +1,8 @@
 # RentWise 项目总结文档
 
-**版本**: 5.0
+**版本**: 6.0
 **更新日期**: 2026-03-29
-**项目状态**: 开发中，核心功能已完成
+**项目状态**: 开发中，核心功能已完成，准备部署测试
 
 ---
 
@@ -60,17 +60,22 @@ RentWise/
 ├── utils.py                  # 通用工具函数
 ├── i18n.py                   # 国际化支持 (简体中文)
 ├── llm_utils.py              # Ollama API客户端
+├── onboarding.py             # 用户引导和进度指示
+├── styles.css                # 自定义CSS样式
+├── packages.txt              # Streamlit Cloud系统依赖
 ├── config/                   # 配置文件目录
 │   ├── risk_rules.yaml       # 风险规则配置
 │   └── rent_benchmarks.json  # 租金基准数据 (含区域关键词)
 ├── chroma_db/                # ChromaDB向量存储目录
 ├── locales/                  # 翻译文件目录
 │   └── zh-cn.json            # 简体中文翻译
+├── .streamlit/               # Streamlit配置目录
+│   └── config.toml           # 部署配置
 ├── document/                 # 文档资料
 │   ├── SDU_median_rents.pdf  # 香港各区租金中位数数据
 │   └── AGuideToTenancy_ch.pdf # 香港租房指南
 ├── requirements.txt          # Python依赖
-└── .env                      # 环境变量配置
+└── .env                      # 环境变量配置（不提交到Git）
 ```
 
 ### 2.2 数据流架构
@@ -200,11 +205,53 @@ streamlit run app.py
 | VPS (阿里云/腾讯云) | ~50元/月 | 中 | 生产环境 |
 
 ### 4.4 Streamlit Cloud 部署步骤
-1. 推送代码到 GitHub 公开仓库
-2. 访问 https://share.streamlit.io/
-3. 连接 GitHub 仓库
-4. 选择 `app.py` 作为主文件
-5. 配置环境变量
+
+**步骤 1: 推送代码到 GitHub**
+```bash
+# 使用 GitHub CLI
+gh auth login
+gh repo create RentWise --public --source=. --push
+
+# 或手动创建仓库后推送
+git remote add origin https://github.com/YingqianChen/RentWise.git
+git branch -M main
+git push -u origin main
+```
+
+**步骤 2: 登录 Streamlit Cloud**
+1. 访问 https://share.streamlit.io/
+2. 点击 "Sign in with GitHub"
+
+**步骤 3: 部署应用**
+1. 点击 "New app"
+2. 选择仓库：`YingqianChen/RentWise`
+3. Main file path: `app.py`
+4. 点击 "Advanced settings"
+
+**步骤 4: 配置 Secrets（环境变量）**
+```toml
+# 必需配置
+SECRET_KEY = "生成的随机32字符密钥"
+
+# Ollama 远程服务器配置
+OLLAMA_HOST = "服务器地址:端口"
+OLLAMA_MODEL = "llama3.3:is6620"
+
+# 数据库
+DATABASE_URL = "sqlite:///./rentwise.db"
+```
+
+**步骤 5: 点击 Deploy**
+
+**生成随机密钥**:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+**安全注意事项**:
+- `.env` 文件已通过 `.gitignore` 排除，不会提交到 Git
+- Secrets 在 Streamlit Cloud 中加密存储
+- 课程材料 (`lab material/`) 已排除，避免泄露敏感信息
 
 ---
 
@@ -291,10 +338,37 @@ streamlit run app.py
   - 回退到关键词匹配和模糊匹配
   - 支持置信度过滤 (≥50%)
 
+#### Phase 9: UI改进与部署准备 ✅ (2026-03-29)
+- **保存偏好加载状态**:
+  - 保存时显示 `st.spinner()` 加载提示
+  - 按钮禁用防止重复点击
+  - 添加 try/catch 错误处理
+- **导航系统重构**:
+  - 从 `st.tabs` 重构为 `st.radio`
+  - 保存偏好后自动跳转到房源分析页
+  - 支持通过 `session_state["active_tab"]` 编程控制
+- **修复Widget Key冲突**:
+  - 修复"加载示例"按钮的 textarea key 冲突
+  - 移除重复的 `value` 参数，仅使用 `key`
+- **清除输入功能完善**:
+  - 清除按钮现在包含文件上传器 (`txt_files`, `images`)
+- **编辑字段扩展**:
+  - 从5个字段扩展到全部9个 ListingInfo 字段
+  - 使用3列布局：月租/管理费/入住日期、押金/差饷/家具、中介费/租期/维修责任
+- **自定义CSS样式**:
+  - 新增 `styles.css` 文件
+  - 中文字体优化 (Noto Sans SC, PingFang SC)
+  - 文本溢出处理
+  - 导航按钮样式美化
+- **Streamlit Cloud部署配置**:
+  - 新增 `.streamlit/config.toml`
+  - 新增 `packages.txt` (EasyOCR系统依赖)
+  - 更新 `.gitignore` 排除敏感文件
+
 ### 5.2 待完成阶段
 
-#### Phase 9: 功能增强 (规划中)
-- [ ] 通勤计算 (Google Maps API)
+#### Phase 10: 功能增强 (规划中)
+- [ ] 通勤计算 (地图API集成)
 - [ ] 价格趋势分析
 - [ ] 移动端优化
 
@@ -306,9 +380,10 @@ streamlit run app.py
 
 | 限制 | 说明 | 解决方案 |
 |------|------|----------|
-| LLM依赖 | 需要Ollama服务器 | 支持OpenAI/Anthropic作为备选 |
+| LLM依赖 | 需要远程Ollama服务器 | Streamlit Cloud部署时配置 OLLAMA_HOST |
 | OCR准确性 | EasyOCR对复杂排版识别有限 | 考虑集成更多OCR引擎 |
 | 租房指南 | PDF为扫描件，未处理 | Phase 8 OCR + RAG |
+| 通勤计算 | 暂未实现 | 规划中（地图API集成） |
 
 ### 6.2 已修复问题
 
@@ -324,6 +399,12 @@ streamlit run app.py
 | 分析结果残留 | 2026-03-29 | 分析前清除旧 session_state |
 | 已存房源无法编辑 | 2026-03-29 | 添加编辑功能 |
 | 价格分析无数据支撑 | 2026-03-29 | 集成政府租金基准数据 |
+| 保存偏好无加载提示 | 2026-03-29 | 添加 spinner 和按钮禁用状态 |
+| 导航需手动切换 | 2026-03-29 | 重构为 radio 导航，自动跳转 |
+| 加载示例按钮报错 | 2026-03-29 | 修复 widget key 冲突 |
+| 清除输入未清除文件 | 2026-03-29 | 添加文件上传器 key 到清除列表 |
+| 编辑字段不全 | 2026-03-29 | 扩展到全部9个字段 |
+| 中文字体显示问题 | 2026-03-29 | 添加自定义 CSS 样式 |
 
 ### 6.3 数据文件说明
 
