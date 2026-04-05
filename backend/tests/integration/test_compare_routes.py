@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from app.api.v1 import comparison as comparison_api
+from app.schemas.comparison import CompareAgentBriefing
+from tests.helpers import build_candidate, build_project, build_user
+
+
+class _ScalarsResult:
+    def __init__(self, values):
+        self._values = values
+
+    def all(self):
+        return self._values
+
+
+class _ListResult:
+    def __init__(self, values):
+        self._values = values
+
+    def scalars(self):
+        return _ScalarsResult(self._values)
+
+
+class FakeAsyncSession:
+    def __init__(self, result):
+        self._result = result
+
+    async def execute(self, *_args, **_kwargs):
+        return self._result
+
+
+class CompareRouteTests(IsolatedAsyncioTestCase):
+    async def test_compare_route_returns_grouped_workspace(self):
+        user = build_user()
+        project = build_project(user)
+        candidate_a = build_candidate(project, name="Candidate A", status="follow_up", next_best_action="schedule_viewing")
+        candidate_a.cost_assessment.monthly_cost_confidence = "high"
+        candidate_a.cost_assessment.cost_risk_flag = "none"
+        candidate_a.clause_assessment.clause_risk_flag = "none"
+        candidate_a.candidate_assessment.recommendation_confidence = "high"
+        candidate_a.candidate_assessment.critical_uncertainty_level = "low"
+        candidate_b = build_candidate(project, name="Candidate B", status="needs_info", next_best_action="verify_cost")
+        db = FakeAsyncSession(_ListResult([candidate_a, candidate_b]))
+
+        async def fake_get_project_for_user(project_id, current_user, session):
+            self.assertEqual(project_id, project.id)
+            self.assertEqual(current_user.id, user.id)
+            self.assertIs(session, db)
+            return project
+
+        async def fake_build_briefing(**_kwargs):
+            return CompareAgentBriefing(
+                current_take="Candidate A is the current lead.",
+                why_now="It is easier to trust today.",
+                what_could_change="Candidate B could still move up if costs are confirmed.",
+                today_s_move="Contact Candidate A first.",
+                confidence_note="This is still a working compare, not a final verdict.",
+            )
+
+        with (
+            patch.object(comparison_api, "get_project_for_user", fake_get_project_for_user),
+            patch.object(comparison_api.comparison_briefing_service, "build", fake_build_briefing),
+        ):
+            response = await comparison_api.compare_candidates(
+                project_id=project.id,
+                request=comparison_api.ComparisonRequest(candidate_ids=[candidate_a.id, candidate_b.id]),
+                current_user=user,
+                db=db,
+            )
+
+        self.assertEqual(response.project_id, project.id)
+        self.assertEqual(response.selected_count, 2)
+        self.assertIsInstance(response.generated_at, datetime)
+        self.assertEqual(response.generated_at.tzinfo, timezone.utc)
+        self.assertTrue(response.summary.headline)
+        self.assertTrue(response.agent_briefing.current_take)
+        self.assertIsNotNone(response.groups.best_current_option)
+
+
+if __name__ == "__main__":
+    import unittest
+
+    unittest.main()

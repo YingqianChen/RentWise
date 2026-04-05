@@ -1,0 +1,128 @@
+{
+  "central & western": {
+    "district": "Central & Western",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 7600,
+    "median_monthly_rent_per_sqm": 610,
+    "record_note": "normal"
+  },
+  "eastern": {
+    "district": "Eastern",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 6450,
+    "median_monthly_rent_per_sqm": 538,
+    "record_note": "normal"
+  },
+  "southern": {
+    "district": "Southern",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 4800,
+    "median_monthly_rent_per_sqm": 484,
+    "record_note": "normal"
+  },
+  "wan chai": {
+    "district": "Wan Chai",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 8000,
+    "median_monthly_rent_per_sqm": 619,
+    "record_note": "normal"
+  },
+  "kowloon city": {
+    "district": "Kowloon City",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5600,
+    "median_monthly_rent_per_sqm": 404,
+    "record_note": "normal"
+  },
+  "kwun tong": {
+    "district": "Kwun Tong",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5100,
+    "median_monthly_rent_per_sqm": 420,
+    "record_note": "normal"
+  },
+  "sham shui po": {
+    "district": "Sham Shui Po",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 4700,
+    "median_monthly_rent_per_sqm": 397,
+    "record_note": "normal"
+  },
+  "wong tai sin": {
+    "district": "Wong Tai Sin",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5450,
+    "median_monthly_rent_per_sqm": 428,
+    "record_note": "normal"
+  },
+  "yau tsim mong": {
+    "district": "Yau Tsim Mong",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5600,
+    "median_monthly_rent_per_sqm": 461,
+    "record_note": "normal"
+  },
+  "islands": {
+    "district": "Islands",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": null,
+    "median_monthly_rent_per_sqm": null,
+    "record_note": "no_records"
+  },
+  "kwai tsing": {
+    "district": "Kwai Tsing",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5500,
+    "median_monthly_rent_per_sqm": 407,
+    "record_note": "normal"
+  },
+  "north": {
+    "district": "North",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 4600,
+    "median_monthly_rent_per_sqm": 371,
+    "record_note": "normal"
+  },
+  "sai kung": {
+    "district": "Sai Kung",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5300,
+    "median_monthly_rent_per_sqm": 570,
+    "record_note": "fewer_than_10_records"
+  },
+  "sha tin": {
+    "district": "Sha Tin",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 6000,
+    "median_monthly_rent_per_sqm": 570,
+    "record_note": "normal"
+  },
+  "tai po": {
+    "district": "Tai Po",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 4800,
+    "median_monthly_rent_per_sqm": 431,
+    "record_note": "normal"
+  },
+  "tsuen wan": {
+    "district": "Tsuen Wan",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 5000,
+    "median_monthly_rent_per_sqm": 450,
+    "record_note": "normal"
+  },
+  "tuen mun": {
+    "district": "Tuen Mun",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 4400,
+    "median_monthly_rent_per_sqm": 514,
+    "record_note": "normal"
+  },
+  "yuen long": {
+    "district": "Yuen Long",
+    "source_period": "2025 Jul-Sep",
+    "median_monthly_rent": 4000,
+    "median_monthly_rent_per_sqm": 409,
+    "record_note": "normal"
+  }
+}
