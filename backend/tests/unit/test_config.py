@@ -24,7 +24,7 @@ class SettingsTests(TestCase):
         )
 
         self.assertEqual(
-            settings.BACKEND_CORS_ORIGINS,
+            settings.backend_cors_origins_list,
             ["https://rentwise.vercel.app", "https://rentwise-api.onrender.com"],
         )
 
@@ -32,7 +32,7 @@ class SettingsTests(TestCase):
         settings = self._build_settings(BACKEND_CORS_ORIGINS="")
 
         self.assertEqual(
-            settings.BACKEND_CORS_ORIGINS,
+            settings.backend_cors_origins_list,
             ["http://localhost:3000", "http://127.0.0.1:3000"],
         )
 
