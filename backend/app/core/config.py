@@ -85,15 +85,27 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        """Validate database URL format"""
+        """Validate and normalize database URL format."""
         if not v:
             raise ValueError("DATABASE_URL must be set in .env file")
-        valid_prefixes = ("postgresql+asyncpg://",)
-        if not v.startswith(valid_prefixes):
+
+        normalized = v.strip()
+        if normalized.startswith("postgres://"):
+            normalized = "postgresql://" + normalized[len("postgres://") :]
+
+        if normalized.startswith("postgresql://") and not normalized.startswith(
+            "postgresql+asyncpg://"
+        ):
+            normalized = "postgresql+asyncpg://" + normalized[len("postgresql://") :]
+
+        normalized = normalized.replace("sslmode=require", "ssl=require")
+
+        if not normalized.startswith("postgresql+asyncpg://"):
             raise ValueError(
-                "DATABASE_URL format incorrect. Supported: postgresql+asyncpg://"
+                "DATABASE_URL format incorrect. Supported: postgresql+asyncpg:// "
+                "(the app also auto-normalizes postgres:// and postgresql:// URLs)."
             )
-        return v
+        return normalized
 
 
 # Global settings instance

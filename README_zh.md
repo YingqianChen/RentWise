@@ -261,7 +261,7 @@ Frontend:
 - 当前 backend 运行时依赖 PostgreSQL。
 - SQLite 不再是当前 schema 的受支持运行时。
 - API key 不再硬编码在 `backend/app/core/config.py` 中；provider secret 必须来自 `backend/.env` 或进程环境。
-- 如果使用 Neon，`DATABASE_URL` 需要采用 `postgresql+asyncpg://...?...ssl=require` 这种 `asyncpg` 兼容格式。
+- 如果使用 Neon 或 Render 托管 Postgres，backend 最理想的 `DATABASE_URL` 形式仍是 `postgresql+asyncpg://...?...ssl=require`。当前配置层也会自动把常见的 `postgres://...` 和 `postgresql://...` 连接串归一化成 `asyncpg` 兼容格式。
 - `BACKEND_CORS_ORIGINS` 支持逗号分隔字符串，例如 `http://localhost:3000,http://127.0.0.1:3000`，部署到云端后应改成你的 Vercel 域名。
 
 ### Frontend
@@ -317,7 +317,7 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 3.11
 ```
 
-仓库现在已经补了 `backend/runtime.txt`，内容为 `python-3.11.11`，用于避免 Render 构建时默认落到 Python 3.14。
+仓库现在改为在根目录提供 `.python-version`，内容为 `3.11.11`，这更符合 Render 的仓库级 Python 版本声明方式。如果某个 Render 服务仍未正确识别，就在 Render 环境变量里显式补上 `PYTHON_VERSION=3.11.11` 作为最终覆盖。
 
 建议的云端环境变量：
 

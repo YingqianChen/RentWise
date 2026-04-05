@@ -35,3 +35,23 @@ class SettingsTests(TestCase):
             settings.BACKEND_CORS_ORIGINS,
             ["http://localhost:3000", "http://127.0.0.1:3000"],
         )
+
+    def test_database_url_normalizes_standard_postgresql_url(self):
+        settings = self._build_settings(
+            DATABASE_URL="postgresql://user:password@localhost:5432/rentwise?sslmode=require"
+        )
+
+        self.assertEqual(
+            settings.DATABASE_URL,
+            "postgresql+asyncpg://user:password@localhost:5432/rentwise?ssl=require",
+        )
+
+    def test_database_url_normalizes_postgres_shorthand_url(self):
+        settings = self._build_settings(
+            DATABASE_URL="postgres://user:password@localhost:5432/rentwise"
+        )
+
+        self.assertEqual(
+            settings.DATABASE_URL,
+            "postgresql+asyncpg://user:password@localhost:5432/rentwise",
+        )

@@ -261,7 +261,7 @@ Notes:
 - The rebuilt backend currently targets PostgreSQL.
 - SQLite is not a supported runtime for the current schema.
 - API keys are no longer hardcoded in `backend/app/core/config.py`; provider secrets must come from `backend/.env` or the process environment.
-- For Neon, use an `asyncpg` SQLAlchemy URL such as `postgresql+asyncpg://...?...ssl=require`.
+- For Neon or Render-managed Postgres, the backend prefers `postgresql+asyncpg://...?...ssl=require`. The config layer now also auto-normalizes common `postgres://...` and `postgresql://...` URLs into the asyncpg format.
 - `BACKEND_CORS_ORIGINS` accepts a comma-separated list such as `http://localhost:3000,http://127.0.0.1:3000` or your deployed Vercel domains.
 
 ### Frontend
@@ -317,7 +317,7 @@ Recommended Render Python runtime:
 3.11
 ```
 
-The repo now includes `backend/runtime.txt` with `python-3.11.11` so Render does not default to Python 3.14 during build.
+The repo now includes a root-level `.python-version` file set to `3.11.11`, which matches Render's preferred repository-level Python version signal. If Render still ignores it in your service, explicitly add `PYTHON_VERSION=3.11.11` in the Render environment settings as the final override.
 
 Suggested cloud environment values:
 
