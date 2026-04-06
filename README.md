@@ -31,6 +31,7 @@ The active product focuses on a candidate-pool decision workflow:
 - candidate deletion with confirmation
 - candidate editing with automatic reassessment
 - candidate detail now keeps the main surface focused on the decision snapshot and blockers, while benchmark, OCR evidence, and supporting details stay secondary until needed
+- candidate detail now includes a restrained Decision signals section for decision-relevant evidence that does not belong in the fixed field table
 - dashboard now shows background-processing candidates as processing work instead of rendering them like empty assessed candidates
 - dashboard now supports candidate deletion directly from the candidate list
 - budget edits now trigger budget-dependent reassessment for existing completed candidates
@@ -379,6 +380,9 @@ Sensitive local files that must stay out of git:
 - Frontend API error handling keeps real backend response errors separate from true network failures, so candidate edit/save surfaces more actionable messages.
 - Repair responsibility assessment now uses an LLM-normalized repair note plus conservative rule-based semantics, so signals like agency-supported repairs are treated as positive but still unconfirmed instead of being collapsed into a generic unknown.
 - Lease term and move-in timing now follow the same pattern: the LLM first normalizes the clause text, then conservative semantic rules decide whether the signal looks standard, rigid, unstable, fit, uncertain, or mismatched.
+- Extraction now reads listing text, chat, notes, and OCR as one source-aware evidence bundle. Later chat or note clarifications can improve the canonical decision read instead of being ignored just because they were not in the original listing copy.
+- Candidate extraction now keeps a lightweight `decision_signals` layer for commute upside, trust concerns, source conflicts, bathroom-sharing notes, amenities, and similar decision-relevant evidence that should stay outside the fixed canonical field table.
+- Relative timing notes such as semester-start move-in and explicit maintenance coverage notes such as school dorm / repairs included are now treated as usable decision evidence instead of being pushed back into generic unknown warnings.
 - Candidate detail now translates internal clause states into user-facing explanations instead of exposing raw labels like `rigid` or `uncertain` directly.
 - Candidate import supports mixed text + multi-image input in one form. Uploaded screenshots are stored through a storage abstraction that currently uses a local development adapter, then OCR text is merged back into the normal `combined_text` analysis pipeline.
 - Development uploads are stored under `backend/storage/`, which must stay out of git.

@@ -40,9 +40,16 @@ class ClauseAssessmentService:
     }
 
     def assess(self, extracted_info: CandidateExtractedInfo, move_in_target: Optional[date] = None) -> ClauseAssessment:
-        repair_level = self._assess_repair_responsibility(extracted_info.repair_responsibility)
+        repair_level = self._assess_repair_responsibility(
+            extracted_info.repair_responsibility,
+            extracted_info.decision_signals,
+        )
         lease_level = self._assess_lease_term(extracted_info.lease_term)
-        move_in_level = self._assess_move_in_date(extracted_info.move_in_date, move_in_target)
+        move_in_level = self._assess_move_in_date(
+            extracted_info.move_in_date,
+            move_in_target,
+            extracted_info.decision_signals,
+        )
         clause_confidence = self._determine_confidence(repair_level, lease_level, move_in_level)
         clause_risk_flag = self._determine_risk_flag(repair_level, lease_level, move_in_level)
         summary = self._generate_summary(repair_level, lease_level, move_in_level, clause_risk_flag)
@@ -56,11 +63,16 @@ class ClauseAssessmentService:
             summary=summary,
         )
 
-    def _assess_repair_responsibility(self, value: Optional[str]) -> str:
-        if self._is_unknown(value):
+    def _assess_repair_responsibility(
+        self,
+        value: Optional[str],
+        signals: list[dict[str, str]] | None = None,
+    ) -> str:
+        signal_text = self._signal_text(signals, {"repair_support_signal"})
+        if self._is_unknown(value) and not signal_text:
             return "unknown"
 
-        lower = str(value).lower()
+        lower = f"{value or ''} {signal_text}".lower()
         repair_topic = any(
             keyword in lower
             for keyword in [
@@ -71,6 +83,9 @@ class ClauseAssessmentService:
                 "maintenance",
                 "fix",
                 "broken",
+                "包维修",
+                "维修",
+                "宿舍",
             ]
         )
         if any(
@@ -99,10 +114,17 @@ class ClauseAssessmentService:
             "pays",
             "paid",
             "will pay",
+            "included",
+            "include",
         ]
         explicit_owner_signal = repair_topic and any(term in lower for term in owner_terms) and any(
             verb in lower for verb in owner_verbs
         )
+        if "school dorm" in lower or "dorm" in lower or "宿舍" in lower:
+            explicit_owner_signal = explicit_owner_signal or any(
+                token in lower
+                for token in ["maintenance included", "包维修", "repairs included", "school covers repairs"]
+            )
         if explicit_owner_signal:
             return "clear"
 
@@ -179,12 +201,37 @@ class ClauseAssessmentService:
 
         return "standard"
 
-    def _assess_move_in_date(self, value: Optional[str], target_date: Optional[date]) -> str:
-        if self._is_unknown(value):
+    def _assess_move_in_date(
+        self,
+        value: Optional[str],
+        target_date: Optional[date],
+        signals: list[dict[str, str]] | None = None,
+    ) -> str:
+        signal_text = self._signal_text(signals, {"move_in_timing_signal"})
+        if self._is_unknown(value) and not signal_text:
             return "unknown"
-        lower = str(value).lower()
+        lower = f"{value or ''} {signal_text}".lower()
         if self._contains_any(lower, ["immediate", "anytime", "available now", "ready now", "move in now", "vacant now"]):
             return "fit"
+        if self._contains_any(
+            lower,
+            [
+                "semester start",
+                "start of semester",
+                "start of school",
+                "school starts",
+                "start of term",
+                "term starts",
+                "开学",
+                "开学时",
+                "开学入住",
+            ],
+        ):
+            if target_date is None:
+                return "fit"
+            if target_date.month in {8, 9, 1, 2}:
+                return "fit"
+            return "uncertain"
         if self._contains_any(lower, ["negotiable", "flexible", "to be discussed", "can discuss"]):
             return "uncertain" if target_date else "fit"
         if target_date is None:
@@ -283,3 +330,17 @@ class ClauseAssessmentService:
             return None, int(month_number_match.group(1))
 
         return None, None
+
+    def _signal_text(self, signals: list[dict[str, str]] | None, keys: set[str]) -> str:
+        if not signals:
+            return ""
+
+        fragments: list[str] = []
+        for signal in signals:
+            if signal.get("key") in keys:
+                fragments.extend(
+                    part
+                    for part in [signal.get("label", ""), signal.get("evidence", ""), signal.get("note", "")]
+                    if part
+                )
+        return " ".join(fragments)

@@ -152,7 +152,7 @@ export default function ProjectsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget cap (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget cap in HKD (optional)</label>
                   <input
                     type="number"
                     value={maxBudget}

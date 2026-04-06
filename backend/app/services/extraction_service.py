@@ -52,6 +52,49 @@ def parse_bool_value(value: str) -> Optional[bool]:
     return None
 
 
+def normalize_signal_value(value: object) -> str:
+    """Normalize signal values into compact strings."""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def normalize_decision_signals(value: object) -> list[dict[str, str]]:
+    """Normalize flexible decision signals from the extractor."""
+    if not isinstance(value, list):
+        return []
+
+    normalized: list[dict[str, str]] = []
+    allowed_sources = {"listing", "chat", "note", "ocr", "mixed"}
+
+    for raw_item in value:
+        if not isinstance(raw_item, dict):
+            continue
+
+        key = normalize_signal_value(raw_item.get("key")).lower().replace(" ", "_")
+        category = normalize_signal_value(raw_item.get("category")).lower().replace(" ", "_")
+        label = normalize_signal_value(raw_item.get("label"))
+        source = normalize_signal_value(raw_item.get("source")).lower()
+        evidence = normalize_signal_value(raw_item.get("evidence"))
+        note = normalize_signal_value(raw_item.get("note"))
+
+        if not key or not category or not label or not evidence:
+            continue
+
+        normalized.append(
+            {
+                "key": key,
+                "category": category,
+                "label": label,
+                "source": source if source in allowed_sources else "mixed",
+                "evidence": evidence,
+                "note": note,
+            }
+        )
+
+    return normalized
+
+
 class ExtractionService:
     """Service for extracting structured information from listing text."""
 
@@ -66,18 +109,48 @@ class ExtractionService:
             if asset.ocr_text and asset.ocr_text.strip()
         ]
 
+    @staticmethod
+    def _build_extraction_context(candidate: CandidateListing, ocr_texts: list[str]) -> str:
+        """Build a source-aware evidence bundle for extraction."""
+        sections: list[str] = []
+
+        def add_section(title: str, value: Optional[str]) -> None:
+            if value and value.strip():
+                sections.append(f"[{title}]\n{value.strip()}")
+
+        add_section("Listing", candidate.raw_listing_text)
+        add_section("Chat", candidate.raw_chat_text)
+        add_section("Notes", candidate.raw_note_text)
+        if ocr_texts:
+            sections.append("[OCR]\n" + "\n\n".join(ocr_texts))
+
+        if sections:
+            return "\n\n".join(sections)
+
+        return (candidate.combined_text or "").strip()
+
     async def extract(self, candidate: CandidateListing) -> CandidateExtractedInfo:
         """Extract structured information from a candidate's combined text."""
         ocr_texts = self._collect_ocr_texts(candidate)
         if not candidate.combined_text:
-            return CandidateExtractedInfo(candidate_id=candidate.id, ocr_texts=ocr_texts)
+            return CandidateExtractedInfo(
+                candidate_id=candidate.id,
+                decision_signals=[],
+                ocr_texts=ocr_texts,
+            )
 
-        prompt = EXTRACTION_PROMPT.format(text=candidate.combined_text)
+        prompt = EXTRACTION_PROMPT.format(
+            text=self._build_extraction_context(candidate, ocr_texts)
+        )
         try:
             data = await chat_completion_json(prompt=prompt, temperature=0.0)
         except Exception as exc:
             print(f"Extraction failed: {exc}")
-            return CandidateExtractedInfo(candidate_id=candidate.id)
+            return CandidateExtractedInfo(
+                candidate_id=candidate.id,
+                decision_signals=[],
+                ocr_texts=ocr_texts,
+            )
 
         return CandidateExtractedInfo(
             candidate_id=candidate.id,
@@ -97,6 +170,7 @@ class ExtractionService:
             bedrooms=normalize_value(data.get("bedrooms", "")),
             suspected_sdu=parse_bool_value(str(data.get("suspected_sdu", ""))),
             sdu_detection_reason=normalize_optional_value(str(data.get("sdu_detection_reason", ""))),
+            decision_signals=normalize_decision_signals(data.get("decision_signals", [])),
             ocr_texts=ocr_texts,
         )
 

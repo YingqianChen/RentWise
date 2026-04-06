@@ -1,9 +1,18 @@
 """LLM prompt templates for extraction and analysis."""
 
-EXTRACTION_PROMPT = """Extract the key rental fields from the Hong Kong listing text below.
-If a field is missing, ambiguous, or not mentioned, return "unknown".
+EXTRACTION_PROMPT = """Extract the key rental fields from the Hong Kong rental evidence below.
+The evidence may include listing copy, agent or landlord chat, tenant notes, and OCR text from screenshots.
 
-Text:
+Important rules:
+1. Combine all sources into one current decision read. Do not assume the original listing is always the final truth.
+2. If later chat or notes clarify a practical rental condition, you may use that clarification in the canonical field.
+3. If sources conflict and you cannot safely resolve the current state, keep the canonical field conservative and add a decision signal about the conflict or ambiguity.
+4. Relative timing notes such as "available at semester start", "move in at the start of school", or "after finals" are still usable timing notes. Do not mark them unknown just because they are not exact calendar dates.
+5. Notes such as "school dorm, maintenance included", "owner covers repairs", or "landlord handles repairs" should not be treated as unknown repair responsibility.
+6. If a field is missing, ambiguous, or not mentioned, return "unknown".
+7. decision_signals is optional. Return an empty list when there is nothing clearly decision-relevant beyond the canonical fields.
+
+Evidence:
 {text}
 
 Return JSON only with these fields:
@@ -23,7 +32,17 @@ Return JSON only with these fields:
     "size_sqft": "Size in square feet",
     "bedrooms": "Number of bedrooms or room type",
     "suspected_sdu": true/false/unknown,
-    "sdu_detection_reason": "Short reason such as keyword_match, room_only_layout, or unknown"
+    "sdu_detection_reason": "Short reason such as keyword_match, room_only_layout, or unknown",
+    "decision_signals": [
+        {{
+            "key": "One of commute_advantage, building_amenity, condition_positive, bathroom_sharing, listing_ambiguity, source_conflict, holding_fee_risk, agent_pressure, trust_concern, fee_discount, photo_quality_concern, repair_support_signal, move_in_timing_signal, other_decision_signal",
+            "category": "One of fit, building, condition, living_arrangement, conflict, trust, cost, timing, other",
+            "label": "Short neutral label under 60 characters",
+            "source": "listing/chat/note/ocr/mixed",
+            "evidence": "Short quote or paraphrase grounded in the evidence",
+            "note": "Optional short explanation of why this matters, or null"
+        }}
+    ]
 }}
 """
 

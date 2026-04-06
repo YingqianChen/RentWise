@@ -22,6 +22,7 @@ import type {
   CandidateContactPlan,
   CompareCandidateCard,
   ComparisonResponse,
+  DecisionSignal,
 } from "@/lib/types";
 
 function actionLabel(action?: string | null) {
@@ -219,6 +220,7 @@ function buildDecisionBlockers(candidate: Candidate): string[] {
   const blockers: string[] = [];
   const cost = candidate.cost_assessment;
   const clause = candidate.clause_assessment;
+  const signals = candidate.extracted_info?.decision_signals ?? [];
 
   if (cost?.cost_risk_flag === "hidden_cost_risk") {
     blockers.push("The real monthly cost is still incomplete.");
@@ -234,8 +236,71 @@ function buildDecisionBlockers(candidate: Candidate): string[] {
   if (clause?.move_in_date_level && ["unknown", "uncertain", "mismatch"].includes(clause.move_in_date_level)) {
     blockers.push("Move-in timing may still break the fit.");
   }
+  for (const signal of signals) {
+    if (signal.key === "holding_fee_risk") {
+      blockers.push("Payment handling looks risky and needs written confirmation.");
+    } else if (signal.key === "trust_concern" || signal.key === "agent_pressure") {
+      blockers.push("The current agent interaction adds trust pressure to this option.");
+    } else if (signal.key === "source_conflict" || signal.key === "listing_ambiguity") {
+      blockers.push("Core facts still conflict across the listing, chat, or notes.");
+    } else if (signal.key === "bathroom_sharing") {
+      blockers.push("Bathroom arrangement may be less private than expected.");
+    }
+  }
 
   return blockers.slice(0, 3);
+}
+
+function signalCategoryLabel(category: string) {
+  switch (category) {
+    case "fit":
+      return "Fit";
+    case "building":
+      return "Building";
+    case "condition":
+      return "Condition";
+    case "living_arrangement":
+      return "Living";
+    case "conflict":
+      return "Conflict";
+    case "trust":
+      return "Trust";
+    case "cost":
+      return "Cost";
+    case "timing":
+      return "Timing";
+    default:
+      return "Signal";
+  }
+}
+
+function signalSourceLabel(source: string) {
+  switch (source) {
+    case "listing":
+      return "Listing";
+    case "chat":
+      return "Chat";
+    case "note":
+      return "Notes";
+    case "ocr":
+      return "OCR";
+    default:
+      return "Mixed";
+  }
+}
+
+function signalTone(category: string) {
+  switch (category) {
+    case "trust":
+    case "conflict":
+      return "bg-red-50 border-red-200";
+    case "cost":
+    case "timing":
+    case "living_arrangement":
+      return "bg-amber-50 border-amber-200";
+    default:
+      return "bg-gray-50 border-gray-200";
+  }
 }
 
 export default function CandidateDetailPage() {
@@ -1142,6 +1207,34 @@ export default function CandidateDetailPage() {
               )}
             </dl>
           </details>
+
+          {extracted && extracted.decision_signals.length > 0 && (
+            <details className="bg-white rounded-lg border border-gray-200 p-6">
+              <summary className="text-lg font-semibold text-gray-900 cursor-pointer">
+                Decision signals
+              </summary>
+              <div className="mt-4 space-y-3">
+                {extracted.decision_signals.map((signal: DecisionSignal, index) => (
+                  <div
+                    key={`${signal.key}-${index}`}
+                    className={`rounded-lg border p-4 ${signalTone(signal.category)}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-gray-900">{signal.label}</span>
+                      <span className="text-xs text-gray-600 bg-white/70 border border-gray-200 px-2 py-0.5 rounded-full">
+                        {signalCategoryLabel(signal.category)}
+                      </span>
+                      <span className="text-xs text-gray-600 bg-white/70 border border-gray-200 px-2 py-0.5 rounded-full">
+                        {signalSourceLabel(signal.source)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700">{signal.evidence}</p>
+                    {signal.note && <p className="text-sm text-gray-600 mt-2">{signal.note}</p>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
 
           {candidate.combined_text && (
             <details className="bg-white rounded-lg border border-gray-200 p-6">

@@ -88,6 +88,7 @@ def build_candidate(
         bedrooms="1",
         suspected_sdu=None,
         sdu_detection_reason=None,
+        decision_signals=[],
         ocr_texts=[],
     )
     candidate.cost_assessment = CostAssessment(

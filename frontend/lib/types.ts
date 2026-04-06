@@ -83,7 +83,17 @@ export interface ExtractedInfo {
   bedrooms: string | null;
   suspected_sdu: boolean | null;
   sdu_detection_reason: string | null;
+  decision_signals: DecisionSignal[];
   ocr_texts: string[];
+}
+
+export interface DecisionSignal {
+  key: string;
+  category: string;
+  label: string;
+  source: string;
+  evidence: string;
+  note: string | null;
 }
 
 export interface CandidateSourceAsset {

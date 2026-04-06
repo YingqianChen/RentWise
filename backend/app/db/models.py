@@ -193,6 +193,9 @@ class CandidateExtractedInfo(Base):
     bedrooms: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     suspected_sdu: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     sdu_detection_reason: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    decision_signals: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
     ocr_texts: Mapped[List[str]] = mapped_column(
         ARRAY(String), default=list, nullable=False
     )

@@ -31,6 +31,7 @@ RentWise 正在从一个 Streamlit 原型重构为 monorepo，当前结构为：
 - candidate 删除带确认框
 - candidate 编辑后自动重新评估
 - candidate detail 现在把主界面收敛在 decision snapshot 和 blocker 上，benchmark、OCR evidence 和更深的结构化细节默认作为次级信息按需展开
+- candidate detail 现在新增一个克制的 Decision signals 次级区块，用来承接不适合塞进固定字段、但又真正影响决策的证据
 - dashboard 会把后台处理中 candidate 显示为 processing work，而不是误渲染成空结果
 - dashboard 支持直接删除 candidate
 - 预算修改后会触发已有已完成 candidate 的预算相关 reassessment
@@ -379,6 +380,9 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 - Frontend API 错误处理会区分真实后端错误和真实网络错误，因此 candidate edit/save 的报错更可操作。
 - Repair responsibility assessment 现在采用 “LLM 先归一化 + 保守规则语义判断” 的方式；像 agency-supported repairs 这类信号会被视为正向但仍未确认，而不是被压扁成 generic unknown。
 - Lease term 和 move-in timing 也采用相同模式：LLM 先归一化文本，再由保守规则判断它更像是 standard、rigid、unstable、fit、uncertain 还是 mismatched。
+- extraction 现在会把 listing、聊天、备注和 OCR 当成一个带来源标签的证据包来综合判断。后续聊天或备注中的补充信息可以修正当前可用结论，而不是因为不在原始 listing 里就被忽略。
+- candidate extraction 现在新增了轻量的 `decision_signals` 层，用来保留 commute 优势、信任风险、信息冲突、共用卫浴、楼宇配套等不适合做固定 canonical 字段、但对决策有价值的信号。
+- 像“开学时入住”这类相对时间，或“学校宿舍，包维修”这类明确备注，现在会被视为可用决策证据，而不是一律退回成 generic unknown 提示。
 - Candidate detail 现在会把内部 clause state 翻译成用户能读懂的解释，而不是直接暴露 `rigid`、`uncertain` 这类内部标签。
 - Candidate import 支持在同一张表单中混合提交文本和多张图片。上传截图会先经过存储抽象层，在开发环境中落到本地，然后 OCR 文本会并入正常的 `combined_text` 分析链路。
 - 开发环境下上传文件保存在 `backend/storage/`，该目录必须排除在 git 外。

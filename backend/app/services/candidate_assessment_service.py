@@ -22,6 +22,7 @@ class CandidateAssessmentService:
         deal_breakers: Optional[List[str]] = None,
         move_in_target: Optional[date] = None,
     ) -> CandidateAssessment:
+        decision_signals = extracted_info.decision_signals or []
         preferred_districts = preferred_districts or []
         must_have = must_have or []
         deal_breakers = deal_breakers or []
@@ -29,6 +30,7 @@ class CandidateAssessmentService:
         hard_conflict = self._has_hard_conflict(
             extracted_info=extracted_info,
             cost_assessment=cost_assessment,
+            decision_signals=decision_signals,
             must_have=must_have,
             deal_breakers=deal_breakers,
             max_budget=max_budget,
@@ -36,6 +38,7 @@ class CandidateAssessmentService:
         potential_value = self._assess_potential_value(
             extracted_info=extracted_info,
             cost_assessment=cost_assessment,
+            decision_signals=decision_signals,
             preferred_districts=preferred_districts,
             must_have=must_have,
         )
@@ -51,6 +54,7 @@ class CandidateAssessmentService:
         decision_risk = self._assess_decision_risk(
             cost_assessment=cost_assessment,
             clause_assessment=clause_assessment,
+            decision_signals=decision_signals,
             hard_conflict=hard_conflict,
         )
         information_gain = self._assess_information_gain(
@@ -68,6 +72,7 @@ class CandidateAssessmentService:
         next_action = self._determine_next_action(
             cost_assessment=cost_assessment,
             clause_assessment=clause_assessment,
+            decision_signals=decision_signals,
             decision_risk=decision_risk,
             recommendation_confidence=recommendation_confidence,
             potential_value=potential_value,
@@ -82,6 +87,7 @@ class CandidateAssessmentService:
             extracted_info=extracted_info,
             cost_assessment=cost_assessment,
             clause_assessment=clause_assessment,
+            decision_signals=decision_signals,
             hard_conflict=hard_conflict,
         )
         summary = self._generate_summary(
@@ -89,6 +95,7 @@ class CandidateAssessmentService:
             completeness=completeness,
             next_action=next_action,
             labels=labels,
+            decision_signals=decision_signals,
             hard_conflict=hard_conflict,
         )
 
@@ -110,6 +117,7 @@ class CandidateAssessmentService:
         self,
         extracted_info: CandidateExtractedInfo,
         cost_assessment: CostAssessment,
+        decision_signals: list[dict[str, str]],
         must_have: List[str],
         deal_breakers: List[str],
         max_budget: Optional[int],
@@ -127,12 +135,18 @@ class CandidateAssessmentService:
             bedrooms = extracted_info.bedrooms.lower()
             if "shared bathroom" in bedrooms:
                 return True
+        if "shared bathroom" in normalized_deal_breakers and self._has_signal(
+            decision_signals,
+            {"bathroom_sharing"},
+        ):
+            return True
         return False
 
     def _assess_potential_value(
         self,
         extracted_info: CandidateExtractedInfo,
         cost_assessment: CostAssessment,
+        decision_signals: list[dict[str, str]],
         preferred_districts: List[str],
         must_have: List[str],
     ) -> str:
@@ -149,6 +163,8 @@ class CandidateAssessmentService:
 
         furnished = (extracted_info.furnished or "").lower()
         if "furnished" in {item.strip().lower() for item in must_have} and "furnished" in furnished:
+            score += 1
+        if self._has_signal(decision_signals, {"commute_advantage", "building_amenity", "condition_positive"}):
             score += 1
 
         if score >= 4:
@@ -200,10 +216,15 @@ class CandidateAssessmentService:
         self,
         cost_assessment: CostAssessment,
         clause_assessment: ClauseAssessment,
+        decision_signals: list[dict[str, str]],
         hard_conflict: bool,
     ) -> str:
         if hard_conflict:
             return "high"
+        if self._has_signal(decision_signals, {"holding_fee_risk", "trust_concern"}):
+            return "high"
+        if self._has_signal(decision_signals, {"source_conflict", "listing_ambiguity", "agent_pressure"}):
+            return "medium"
         if cost_assessment.cost_risk_flag in {"over_budget", "hidden_cost_risk"}:
             return "high"
         if clause_assessment.clause_risk_flag == "high_risk":
@@ -251,6 +272,7 @@ class CandidateAssessmentService:
         self,
         cost_assessment: CostAssessment,
         clause_assessment: ClauseAssessment,
+        decision_signals: list[dict[str, str]],
         decision_risk: str,
         recommendation_confidence: str,
         potential_value: str,
@@ -260,6 +282,8 @@ class CandidateAssessmentService:
             return "reject"
         if cost_assessment.known_monthly_cost is None or cost_assessment.monthly_cost_confidence == "low":
             return "verify_cost"
+        if self._has_signal(decision_signals, {"holding_fee_risk", "source_conflict", "listing_ambiguity", "agent_pressure"}):
+            return "verify_clause"
         if clause_assessment.clause_confidence == "low" or clause_assessment.clause_risk_flag in {"needs_confirmation", "high_risk"}:
             return "verify_clause"
         if recommendation_confidence == "high" and potential_value in {"high", "medium"}:
@@ -282,6 +306,7 @@ class CandidateAssessmentService:
         extracted_info: CandidateExtractedInfo,
         cost_assessment: CostAssessment,
         clause_assessment: ClauseAssessment,
+        decision_signals: list[dict[str, str]],
         hard_conflict: bool,
     ) -> List[str]:
         labels: List[str] = []
@@ -298,6 +323,12 @@ class CandidateAssessmentService:
             labels.append("Tenant-heavy repairs")
         if clause_assessment.lease_term_level == "unstable":
             labels.append("Unstable lease")
+        if self._has_signal(decision_signals, {"holding_fee_risk", "trust_concern"}):
+            labels.append("Trust concern")
+        elif self._has_signal(decision_signals, {"source_conflict", "listing_ambiguity"}):
+            labels.append("Info conflict")
+        if self._has_signal(decision_signals, {"commute_advantage"}):
+            labels.append("Strong commute")
 
         if not self._is_unknown(extracted_info.district):
             labels.append(str(extracted_info.district))
@@ -310,6 +341,7 @@ class CandidateAssessmentService:
         completeness: str,
         next_action: str,
         labels: List[str],
+        decision_signals: list[dict[str, str]],
         hard_conflict: bool,
     ) -> str:
         if hard_conflict:
@@ -331,10 +363,17 @@ class CandidateAssessmentService:
         parts = [value_map.get(potential_value, "This candidate still needs review.")]
         if completeness == "low":
             parts.append("Important information is still missing.")
+        if self._has_signal(decision_signals, {"holding_fee_risk", "trust_concern"}):
+            parts.append("There is also a trust or payment-handling concern in the current evidence.")
+        elif self._has_signal(decision_signals, {"source_conflict", "listing_ambiguity"}):
+            parts.append("Some source details still conflict, so the current read should stay cautious.")
         parts.append(action_map.get(next_action, ""))
         if labels:
             parts.append(f"Key signals: {', '.join(labels)}.")
         return " ".join(part for part in parts if part)
+
+    def _has_signal(self, signals: list[dict[str, str]], keys: set[str]) -> bool:
+        return any(signal.get("key") in keys for signal in signals)
 
     def _is_unknown(self, value: Optional[str]) -> bool:
         if value is None:

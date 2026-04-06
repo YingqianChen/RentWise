@@ -80,3 +80,20 @@ class ClauseAssessmentServiceTests(TestCase):
         result = self.service.assess(candidate.extracted_info, move_in_target=self.project.move_in_target)
 
         self.assertEqual(result.move_in_date_level, "mismatch")
+
+    def test_treats_school_dorm_maintenance_note_as_clear_repair_signal(self):
+        candidate = build_candidate(self.project)
+        candidate.extracted_info.repair_responsibility = "School dorm, maintenance included and repairs are covered."
+
+        result = self.service.assess(candidate.extracted_info, move_in_target=self.project.move_in_target)
+
+        self.assertEqual(result.repair_responsibility_level, "clear")
+        self.assertEqual(result.clause_risk_flag, "none")
+
+    def test_treats_semester_start_note_as_fit_without_exact_date(self):
+        candidate = build_candidate(self.project)
+        candidate.extracted_info.move_in_date = "Can move in at semester start / 开学时入住"
+
+        result = self.service.assess(candidate.extracted_info, move_in_target=None)
+
+        self.assertEqual(result.move_in_date_level, "fit")

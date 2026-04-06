@@ -8,6 +8,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .benchmark import BenchmarkEvidence
 
+class DecisionSignalResponse(BaseModel):
+    """Flexible decision-relevant signal extracted from source evidence."""
+
+    key: str
+    category: str
+    label: str
+    source: str
+    evidence: str
+    note: Optional[str] = None
+
+
 # ============== Extracted Info ==============
 
 class ExtractedInfoResponse(BaseModel):
@@ -31,6 +42,7 @@ class ExtractedInfoResponse(BaseModel):
     bedrooms: Optional[str]
     suspected_sdu: Optional[bool]
     sdu_detection_reason: Optional[str]
+    decision_signals: List[DecisionSignalResponse] = Field(default_factory=list)
     ocr_texts: List[str]
 
 
