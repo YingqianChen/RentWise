@@ -1,707 +1,246 @@
 # RentWise
 
-This README is the **canonical project document** for the active codebase.
+RentWise is a Hong Kong rental research workspace. It helps a renter organize
+rental candidates, compare them, and decide what to verify next — instead of
+guessing from noisy listings.
 
-If older notes, specs, or refactor docs disagree with this file, treat this README as the current source of truth. A synchronized Chinese review copy is kept in `README_zh.md`; both documents should be updated together.
+This repository is the **MSc coursework submission** version. Active development
+continues on a separate fork; this tree is frozen at the submission state.
 
-RentWise is being rebuilt from a Streamlit prototype into a monorepo with:
+**Language**: [English](README.md) • [中文](README_zh.md)
 
-- `backend/`: FastAPI + SQLAlchemy + LangGraph
-- `frontend/`: Next.js + React + TypeScript
-- `legacy/`: archived Streamlit prototype code for reference only
+---
 
-## Current Product Scope
+## What RentWise does
 
-The rebuilt app now covers Phase 1 stabilization plus an initial Phase 2 compare workflow.
+- **Candidate pool** — Paste or upload a rental listing (text, image, screenshot,
+  PDF). The system extracts structured fields (address, rent, area, layout,
+  utilities, fees), stores the raw source, and tags which fields are missing.
+- **Per-candidate assessment** — For each candidate the system runs a set of
+  evidence checks: SDU rent benchmark (is this price reasonable for the
+  district/size?), cost breakdown (rent + management fee + rates + est. bills),
+  clause-level flags (deposit, early termination, agency fee, repairs), and a
+  priority score.
+- **Compare view** — Side-by-side table and short written briefing for any 2–5
+  candidates, so the user can see where they trade off.
+- **Investigation items** — The system produces a short list of open questions
+  per candidate ("confirm agency fee split", "ask about internet cost",
+  "verify landlord identity"), so the next message to the landlord/agent
+  writes itself.
 
-### Candidate-pool workflow
+The product philosophy is honest-assistant: don't rank for the user, surface
+evidence and missing info so the user ranks with confidence.
 
-The active product focuses on a candidate-pool decision workflow:
+---
 
-- user registration and login
-- search project creation
-- search project budget editing
-- search project deletion
-- mixed text + multi-image candidate import
-- background OCR / extraction / assessment after import
-- dashboard summary with action-oriented priority candidates and investigation items
-- dashboard investigation checklist now groups shared blockers instead of repeating the same prompt for each listing
-- candidate detail view with reassess / shortlist / reject actions
-- candidate detail outreach drafting for the next landlord / agent message
-- candidate deletion with confirmation
-- candidate editing with automatic reassessment
-- candidate detail now keeps the main surface focused on the decision snapshot and blockers, while benchmark, OCR evidence, and supporting details stay secondary until needed
-- candidate detail now includes a restrained Decision signals section for decision-relevant evidence that does not belong in the fixed field table
-- dashboard now shows background-processing candidates as processing work instead of rendering them like empty assessed candidates
-- dashboard now supports candidate deletion directly from the candidate list
-- budget edits now trigger budget-dependent reassessment for existing completed candidates
-- top-level first-pass recommendation:
-  - shortlist recommendation
-  - not ready
-  - likely reject
+## Repository layout
 
-### Compare workflow
+```
+backend/       FastAPI + SQLAlchemy async + Alembic
+  app/
+    api/v1/          auth, projects, candidates, comparison, dashboard, investigation
+    services/        domain logic (benchmark, extraction, assessment, ...)
+    integrations/    LLM provider + prompts
+    agent/           LangGraph investigation agent (experimental)
+    db/              SQLAlchemy models
+    schemas/         Pydantic request/response models
+    data/            SDU rent benchmark JSON
+  alembic/           migrations
+  tests/             unit + integration (pytest)
 
-The current compare experience is designed as a shortlist decision workspace rather than a field table:
+frontend/      Next.js 14 App Router + Tailwind v3 + TypeScript
+  app/
+    login/                                sign in
+    projects/                             project list
+    projects/[id]/                        project dashboard
+    projects/[id]/import/                 add candidates (paste / upload)
+    projects/[id]/candidates/[id]/        candidate detail + evidence
+    projects/[id]/compare/                side-by-side comparison
+  lib/           api client + auth helpers
 
-- manual candidate selection from the dashboard
-- compare workspace for 2 or more selected candidates
-- decision grouping instead of fake exact ranking:
-  - best current option
-  - viable alternatives
-  - not ready for fair comparison
-  - likely drop
-- explanation-rich compare cards with:
-  - why the candidate is in its group
-  - main tradeoff
-  - open blocker
-  - next action
-- recommended next actions for the compare set:
-  - who to contact first
-  - what to ask next
-  - who is ready for viewing
-  - who can be deprioritized
-- suggested compare preview on the dashboard
-- compare context on the candidate detail page so the decision story stays consistent across surfaces
-- LLM-assisted agent briefing on the compare page, focused on:
-  - current take
-  - why now
-  - what could change
-  - today's move
-  - confidence note
-- compare page now keeps supporting differences shorter so the main decision flow stays on briefing, groups, and next actions
-
-Not in the current scope:
-
-- RAG-driven district workflow
-- commute calculation
-- saved compare history
-- map-backed commute support
-
-## What The Product Is Trying To Be
-
-RentWise is not meant to be a field extractor or a generic chat assistant.
-
-The current product direction is:
-
-- a candidate-pool decision workspace
-- a compare-driven shortlist tool
-- an agent-assisted explanation layer
-
-The intended user value is:
-
-- help users decide which listings deserve attention
-- make uncertainty visible instead of hiding it
-- explain tradeoffs in plain language
-- turn "I have several options and do not know what to do next" into an actionable workflow
-
-## Repository Layout
-
-```text
-RentWise/
-  backend/
-  frontend/
-  legacy/
-  docs/
+docs/          architecture, data model, API design, AI features, presentation notes
 ```
 
-Key directories:
+---
 
-- `backend/`: API, database models, OCR pipeline, assessment services, Alembic migrations, tests
-- `frontend/`: Next.js app routes, API client, auth helpers, candidate/project pages
-- `docs/`: design notes, presentation notes, roadmap material
-- `legacy/`: archived prototype artifacts kept for reference only
+## Backend — modules at a glance
 
-## Key Modules And Files
+`backend/app/services/`:
+
+| Service | What it does |
+|---|---|
+| `extraction_service` | Normalize raw listing input into the candidate schema |
+| `ocr_service` | OCR for image and PDF listings |
+| `file_storage_service` | Store uploaded sources (local FS / S3-compatible) |
+| `candidate_import_service` + `_background_service` | Parse input, enqueue extraction, persist candidate |
+| `candidate_pipeline_service` | Orchestrate assessment steps after import |
+| `candidate_assessment_service` | Top-level assessment entry point |
+| `benchmark_service` | Match candidate to SDU district/size benchmark (rent reasonableness) |
+| `cost_assessment_service` | Rent + management + rates + estimated bills total |
+| `clause_assessment_service` | Deposit, early termination, repairs, agency-fee checks |
+| `priority_service` | Scoring used by the dashboard |
+| `investigation_service` | Open questions / things to verify next |
+| `comparison_service` + `comparison_briefing_service` | Side-by-side data + natural-language briefing |
+| `dashboard_service` | Project-level summary numbers |
+
+`backend/app/integrations/`:
+
+- `llm/` — LLM provider wrapper + shared prompt templates.
+
+---
+
+## Frontend — pages at a glance
+
+| Route | Purpose |
+|---|---|
+| `/` | Landing page |
+| `/login` | Sign in |
+| `/projects` | List of search projects (create / delete) |
+| `/projects/[id]` | Project dashboard: KPIs + candidate grid |
+| `/projects/[id]/import` | Add a new candidate (paste text / upload files) |
+| `/projects/[id]/candidates/[id]` | One candidate's extracted fields + evidence + investigation items |
+| `/projects/[id]/compare` | Compare 2–5 selected candidates |
+
+---
+
+## Setup
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 15+ (local or Neon / Supabase)
 
 ### Backend
 
-- `backend/app/main.py`
-  - FastAPI entry point and startup hooks, including OCR prewarm
-- `backend/app/core/config.py`
-  - environment-driven settings; secrets now come only from `.env` or the process environment
-- `backend/app/db/models.py`
-  - SQLAlchemy models for users, projects, candidates, assessments, and source assets
-- `backend/app/api/v1/auth.py`
-  - registration and login routes
-- `backend/app/api/v1/projects.py`
-  - project create/update/delete logic, including budget updates
-- `backend/app/api/v1/candidates.py`
-  - candidate import, list/detail, edit, delete, reassessment
-- `backend/app/api/v1/dashboard.py`
-  - dashboard response assembly for project-level decision views
-- `backend/app/api/v1/comparison.py`
-  - compare workflow routes
-- `backend/app/services/candidate_import_background_service.py`
-  - in-process background OCR and assessment pipeline
-- `backend/app/services/ocr_service.py`
-  - OCR provider abstraction, result normalization, and backend selection
-- `backend/app/services/file_storage_service.py`
-  - upload storage abstraction; local development currently writes to `backend/storage/`
-- `backend/app/services/extraction_service.py`
-  - LLM-driven structured extraction from combined candidate text
-- `backend/app/services/cost_assessment_service.py`
-  - cost-focused heuristics and confidence outputs
-- `backend/app/services/clause_assessment_service.py`
-  - lease / repair / move-in semantic assessment
-- `backend/app/services/candidate_assessment_service.py`
-  - overall candidate recommendation, completeness, and next action
-- `backend/app/services/comparison_service.py`
-  - shortlist grouping and compare explanations
-- `backend/app/services/comparison_briefing_service.py`
-  - compare-page LLM briefing with fallback behavior
-- `backend/app/services/benchmark_service.py`
-  - SDU benchmark evidence lookup using local structured data
-- `backend/app/data/benchmark_sdu_rents.json`
-  - versioned SDU median-rent benchmark data file
-- `backend/alembic/`
-  - schema migration history
-- `backend/tests/`
-  - unit and integration coverage for major flows
-
-### Frontend
-
-- `frontend/app/page.tsx`
-  - landing page
-- `frontend/app/login/page.tsx`
-  - login view
-- `frontend/app/projects/page.tsx`
-  - project list view
-- `frontend/app/projects/[id]/page.tsx`
-  - project dashboard, candidate queue, budget editing
-- `frontend/app/projects/[id]/import/page.tsx`
-  - mixed text + image import form with processing state UX
-- `frontend/app/projects/[id]/candidates/[candidateId]/page.tsx`
-  - candidate detail, reassessment, OCR evidence, delete action
-- `frontend/app/projects/[id]/compare/page.tsx`
-  - compare workspace and LLM briefing
-- `frontend/lib/api.ts`
-  - browser API client and response/error handling
-- `frontend/lib/types.ts`
-  - shared frontend response types
-- `frontend/lib/auth.ts`
-  - token storage helpers
-
-## Backend Setup
-
 ```bash
 cd backend
-python -m venv venv
-.\venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env
+
+cp .env.example .env
+# edit .env — see "Environment variables" below
+
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload
+# http://127.0.0.1:8000  (docs: /docs)
 ```
 
-If you want image OCR during candidate import, the default backend uses `rapidocr_onnxruntime`, which is lighter for Windows + CPU local development. If you explicitly switch `OCR_PROVIDER=paddleocr`, install `paddleocr` and `paddlepaddle` manually in `backend\\venv` before starting the API.
-
-For memory-constrained deployments (e.g. Render free tier, 512MB), set `OCR_PROVIDER=mistral` and provide `MISTRAL_API_KEY`. The backend then offloads OCR to the Mistral OCR cloud API instead of loading any local model, dropping resident memory from ~400MB to ~80MB. Mistral's free tier currently allows up to 1000 pages per day. Note that uploaded images are sent to Mistral for processing.
-
-If your local PostgreSQL database was created by the earlier startup `create_all()` flow, run this one-time command instead before switching to Alembic-managed migrations:
-
-```bash
-alembic stamp head
-```
-
-Then continue to use:
-
-```bash
-alembic upgrade head
-```
-
-`stamp head` only aligns Alembic's recorded revision. It does not add missing tables or columns.
-
-Backend API:
-
-- `http://localhost:8000`
-- Swagger: `http://localhost:8000/docs`
-
-## Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
 npm install
-copy .env.local.example .env.local
+cp .env.local.example .env.local
+# edit NEXT_PUBLIC_API_BASE_URL if backend isn't on :8000
 npm run dev
+# http://localhost:3000
 ```
 
-Frontend:
+### Environment variables
 
-- `http://localhost:3000`
-
-## Environment Variables
-
-### Backend
+**Backend** (`backend/.env`):
 
 Required:
+- `DATABASE_URL` — e.g. `postgresql+asyncpg://user:pass@host:5432/rentwise`
+- `SECRET_KEY` — JWT signing key (generate with `openssl rand -hex 32`)
+- `OPENAI_API_KEY` **or** `ANTHROPIC_API_KEY` — pick your LLM provider
 
-- `SECRET_KEY`
-- `DATABASE_URL`
-- `LLM_PROVIDER`
+Optional:
+- `LLM_PROVIDER` — `openai` or `anthropic` (default: `openai`)
+- `LLM_MODEL` — override the default model for the chosen provider
+- `ALLOWED_ORIGINS` — CORS whitelist, comma-separated
+- `STORAGE_BACKEND` — `local` (default) or `s3`
+- `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` — required if `STORAGE_BACKEND=s3`
 
-Optional provider settings:
+**Frontend** (`frontend/.env.local`):
 
-- `GROQ_API_KEY`
-- `GROQ_MODEL`
-- `OLLAMA_HOST`
-- `OLLAMA_API_KEY`
-- `OLLAMA_MODEL`
-- `BACKEND_CORS_ORIGINS`
-- `FILE_STORAGE_PROVIDER`
-- `LOCAL_UPLOAD_ROOT`
-- `OCR_PROVIDER` (`rapidocr` | `paddleocr` | `mistral` | `ocr_space`)
-- `MISTRAL_API_KEY` (required when `OCR_PROVIDER=mistral`)
-- `MISTRAL_OCR_MODEL` (default `mistral-ocr-latest`)
-- `OCR_SPACE_API_KEY` (reserved for future OCR.space fallback)
-- `PADDLEOCR_LANG`
-- `OCR_USE_DOC_ORIENTATION`
-- `OCR_USE_DOC_UNWARPING`
-- `OCR_USE_TEXTLINE_ORIENTATION`
-- `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK`
-- `LOW_MEMORY_MODE`
-- `OCR_PREWARM_ON_STARTUP`
-- `OCR_MAX_IMAGE_DIMENSION`
+- `NEXT_PUBLIC_API_BASE_URL` — e.g. `http://localhost:8000`
 
-Notes:
-
-- The rebuilt backend currently targets PostgreSQL.
-- SQLite is not a supported runtime for the current schema.
-- API keys are no longer hardcoded in `backend/app/core/config.py`; provider secrets must come from `backend/.env` or the process environment.
-- For Neon or Render-managed Postgres, the backend prefers `postgresql+asyncpg://...?...ssl=require`. The config layer now also auto-normalizes common `postgres://...` and `postgresql://...` URLs into the asyncpg format.
-- `BACKEND_CORS_ORIGINS` accepts a comma-separated list such as `http://localhost:3000,http://127.0.0.1:3000` or your deployed Vercel domains.
-
-### Frontend
-
-- `NEXT_PUBLIC_API_URL`
-
-Default:
-
-- `http://localhost:8000`
-
-Important:
-
-- In Vercel, the environment variable value must be the raw backend URL only, for example `https://rentwise-api.onrender.com`.
-- Do not paste the full assignment string such as `NEXT_PUBLIC_API_URL=https://rentwise-api.onrender.com` into the value field.
-
-## Deployment Notes
-
-Current deployment assumptions:
-
-- database: PostgreSQL, including hosted services such as Neon
-- backend: FastAPI process with an in-process background worker
-- frontend: Next.js app
-- OCR runtime: RapidOCR on ONNX Runtime by default, with optional PaddleOCR fallback
-
-Important production caveats:
-
-- Candidate OCR and assessment currently run in an in-process background worker, not an external job queue.
-- Local file storage is suitable for development only. The upload layer is abstracted, but production deployment should move to object storage rather than relying on the backend filesystem.
-- OCR still does real image work on CPU, but the default path now favors lower startup cost and better Windows-local responsiveness. The codebase still prewarms the OCR engine and downscales large images before OCR, and PaddleOCR remains available only as an explicit fallback when you need to trade more latency for different recognition behavior.
-
-Recommended production direction:
-
-1. PostgreSQL on Neon or another managed provider
-2. dedicated object storage for uploaded screenshots
-3. backend deployment with persistent environment variables
-4. frontend deployment on a Next.js-compatible host
-5. future upgrade from in-process background work to an external queue if import volume grows
-
-Recommended hosted setup for the current codebase:
-
-1. frontend on Vercel with the project root set to `frontend/`
-2. backend on Render as a Python web service with the root set to `backend/`
-3. database on Neon using an `asyncpg` connection string
-4. `NEXT_PUBLIC_API_URL` in Vercel pointing to the Render backend URL
-5. `BACKEND_CORS_ORIGINS` in Render including your Vercel production domain and preview domain if needed
-6. pin the Render Python runtime to 3.11 so `pydantic-core` installs from wheels instead of falling back to a Rust build on Python 3.14
-
-Suggested Render backend commands:
-
-```bash
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-Recommended Render Python runtime:
-
-```text
-3.11
-```
-
-The repo now includes a root-level `.python-version` file set to `3.11.11`, which matches Render's preferred repository-level Python version signal. If Render still ignores it in your service, explicitly add `PYTHON_VERSION=3.11.11` in the Render environment settings as the final override.
-
-Suggested cloud environment values:
-
-- Vercel: `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
-- Render: `APP_ENV=production`
-- Render: `BACKEND_CORS_ORIGINS=https://<your-vercel-app>.vercel.app`
-- Render: `DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>/<db>?ssl=require`
-- Render: `SECRET_KEY=<strong-random-secret>`
-- Render: `LLM_PROVIDER=groq`
-- Render: `GROQ_API_KEY=<your-groq-key>`
-- Render free tier: `OCR_PROVIDER=mistral` with `MISTRAL_API_KEY`, plus `OCR_PREWARM_ON_STARTUP=false` and `LOW_MEMORY_MODE=true`. The local OCR runtimes will OOM the 512MB instance, so cloud OCR is required there.
-- Self-hosted / larger instances: `OCR_PROVIDER=rapidocr`
-- Render: `LOW_MEMORY_MODE=true`
-
-Current storage caveat in cloud:
-
-- The local storage adapter is still acceptable for short-lived demos because OCR runs immediately after upload, but uploaded files are not durable on ephemeral filesystems.
-- If you need stable source-file retention across deploys or restarts, move candidate uploads to object storage before treating the deployment as production-ready.
-
-## Release And Data-Safety Checklist
-
-Before pushing to GitHub:
-
-- confirm `backend/.env`, `frontend/.env.local`, and any root `.env` files are ignored and not tracked
-- confirm `backend/storage/` is ignored
-- do not commit model caches, logs, virtual environments, or build artifacts
-- do not commit exported course/reference HTML files or ad hoc local scratch files
-- rotate any credentials that were ever pasted into chat, docs, screenshots, or terminals
-- keep only placeholder values in `.env.example`
-- review `git status` before every push
-
-Sensitive local files that must stay out of git:
-
-- `backend/.env`
-- `frontend/.env.local`
-- `backend/storage/`
-- `frontend/node_modules/`
-- `frontend/.next/`
-- local logs, caches, and generated artifacts
-
-## Product Notes
-
-- `legacy/streamlit_app/` is not the active product entry point.
-- Database schema is managed with Alembic.
-- Run `alembic upgrade head` before starting the backend on a fresh environment.
-- If you already had tables from the older startup-created schema, run `alembic stamp head` once to align Alembic with the existing database, then keep using `alembic upgrade head` for every later schema change.
-- If you see errors like `column candidate_extracted_info.suspected_sdu does not exist`, your code is ahead of your local database schema. Run `alembic upgrade head` in `backend/`.
-- Project deletion removes related candidates, assessments, and investigation items through database cascade rules.
-- Candidate editing is currently available from the candidate detail page.
-- Compare results are generated on demand and are not persisted yet.
-- Dashboard can surface a suggested compare set based on the current shortlist shape.
-- Candidate detail can open a compare workspace centered on the current candidate.
-- Compare page includes an LLM-assisted briefing layer with deterministic fallback if the model call fails.
-- Candidate detail pushes structured fields and source text into supporting sections so the decision read comes first.
-- Dashboard treats open questions as a grouped investigation checklist rather than a repeated per-listing warning feed.
-- Frontend API error handling keeps real backend response errors separate from true network failures, so candidate edit/save surfaces more actionable messages.
-- Repair responsibility assessment now uses an LLM-normalized repair note plus conservative rule-based semantics, so signals like agency-supported repairs are treated as positive but still unconfirmed instead of being collapsed into a generic unknown.
-- Lease term and move-in timing now follow the same pattern: the LLM first normalizes the clause text, then conservative semantic rules decide whether the signal looks standard, rigid, unstable, fit, uncertain, or mismatched.
-- Extraction now reads listing text, chat, notes, and OCR as one source-aware evidence bundle. Later chat or note clarifications can improve the canonical decision read instead of being ignored just because they were not in the original listing copy.
-- Candidate extraction now keeps a lightweight `decision_signals` layer for commute upside, trust concerns, source conflicts, bathroom-sharing notes, amenities, and similar decision-relevant evidence that should stay outside the fixed canonical field table.
-- Relative timing notes such as semester-start move-in and explicit maintenance coverage notes such as school dorm / repairs included are now treated as usable decision evidence instead of being pushed back into generic unknown warnings.
-- Candidate detail now translates internal clause states into user-facing explanations instead of exposing raw labels like `rigid` or `uncertain` directly.
-- Candidate import supports mixed text + multi-image input in one form. Uploaded screenshots are stored through a storage abstraction that currently uses a local development adapter, then OCR text is merged back into the normal `combined_text` analysis pipeline.
-- Development uploads are stored under `backend/storage/`, which must stay out of git.
-- OCR import stores uploaded source-asset metadata separately from extracted candidate fields so the async candidate pipeline can reuse OCR evidence without triggering lazy-load issues during import.
-- If image-only import creates empty extraction results, first verify that the configured OCR runtime is installed inside `backend\\venv`. The default setup expects `rapidocr_onnxruntime`; the Paddle fallback additionally needs both `paddleocr` and `paddlepaddle`. Background import failures are now written back onto the candidate so the detail page can show the real OCR failure reason instead of a fake network-style error.
-- Candidate import is processed by an in-app background task instead of blocking the request until OCR and assessment finish. The import page returns quickly, redirects to the candidate detail page, and the detail page polls until the background stages finish.
-- Candidate import now commits the queued candidate before the background OCR task starts, which avoids cloud timing issues where a new worker session could not see the just-created candidate record yet.
-- The initial queued import response returns a placeholder candidate state without forcing lazy assessment loads, so image import no longer crashes at response serialization time before the background worker starts.
-- The project dashboard also polls while any candidate is still processing, so finished OCR jobs can move into the priority queue without forcing a manual refresh.
-- Candidates that are still processing are shown as explicit background work on the dashboard instead of appearing as blank low-information cards, and they are temporarily excluded from compare selection until assessment finishes.
-- OCR startup is prewarmed by default so the first user import does not have to pay the full model boot cost inside the request path, regardless of which supported OCR provider you choose.
-- Uploaded screenshots are resized down to a configurable maximum dimension before OCR, which significantly reduces CPU-bound latency on oversized mobile screenshots without changing the mixed text + image workflow.
-- For small cloud instances such as low-tier Render services, set `LOW_MEMORY_MODE=true`. That disables eager OCR warmup, clamps OCR resize more aggressively, and releases the shared OCR engine after each OCR run so idle RAM pressure is lower.
-- `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK` remains available for the optional Paddle fallback and is pushed into `os.environ` before `paddleocr` is imported, so setting it in `backend/.env` suppresses the model-hoster connectivity check without requiring a manual terminal export.
-- Candidate processing stages are currently:
-  - `queued`
-  - `running_ocr`
-  - `extracting`
-  - `completed`
-  - `failed`
-- This is intentionally an in-process background worker, not an external queue. It improves perceived speed immediately, but tasks are still tied to the running backend process.
-- Candidate detail supports permanent deletion with a confirmation step, and the project workspace supports inline budget updates.
-- Candidate deletion is available both from candidate detail and directly from the dashboard candidate list.
-- Updating a project's budget refreshes budget-dependent assessments for existing completed candidates, so the dashboard and candidate recommendations stay aligned with the new cap.
-- Candidate detail exposes OCR evidence per uploaded file so you can inspect what text OCR actually read before blaming downstream extraction.
-- Candidate detail now includes an on-demand LLM outreach draft that turns the current blockers into 2 to 3 concrete landlord / agent questions plus a short English message draft. It is intentionally generated only when requested so the page does not become noisier for users comparing only a few listings.
-- Candidate detail now follows a lighter decision-workspace pattern: the main screen stays focused on the live decision, while benchmark notes and deeper evidence panels are collapsed by default.
-- The import page uses a custom upload trigger instead of the browser's native file-button label, which avoids mixed-language UI inside an otherwise English interface.
-- Extraction normalization is type-tolerant: `normalize_value` / `normalize_optional_value` / `parse_bool_value` accept any LLM return type (string, int, float, bool, null), so a numeric value such as `size_sqft: 500` no longer crashes reassessment with `'int' object has no attribute 'lower'`.
-- Project budget updates eager-load each candidate's `source_assets`, `extracted_info`, and assessment relationships before running pipeline reassessment, so a budget change no longer trips an async lazy-load (`MissingGreenlet`) and rolls the whole transaction back.
-- Compare key-difference summaries now exclude the current leader from the "still uncertain" / "still fragile" / "would benefit from more evidence" lists, so the leading candidate is never described as both the clearest and the least clear option in the same sentence.
-- `POST /api/v1/auth/login` accepts both `application/json` (used by the frontend) and `application/x-www-form-urlencoded` (with `username` or `email`), so Swagger's "Authorize" button and standard OAuth2 clients work without rejecting the request as a Pydantic body error.
-- The OCR provider abstraction now supports a Mistral cloud backend (`OCR_PROVIDER=mistral`). When enabled, the backend skips loading any local OCR model, base64-encodes each uploaded image, and calls `https://api.mistral.ai/v1/ocr` directly. This is the recommended setup on memory-constrained hosts (e.g. Render free 512MB) where the local RapidOCR / PaddleOCR runtimes would otherwise OOM the instance. The local providers are unchanged and remain the default for development.
-
-## UX Reality Check
-
-One of the biggest current product risks is information overload.
-
-The codebase can already generate:
-
-- structured extraction
-- cost assessment
-- clause assessment
-- candidate assessment
-- compare grouping
-- compare explanation
-- next-step guidance
-
-That is useful, but it also creates a risk:
-
-- too much structured output
-- too many repeated explanations
-- too many page sections competing for attention
-
-The current direction is therefore:
-
-- keep the decision path visible
-- push supporting detail lower on the page
-- reduce duplicate explanation across sections
-- use explanation to support decisions, not to bury them
-
-## Phase Status
-
-### Phase 1
-
-Phase 1 is effectively complete:
-
-- auth
-- projects
-- candidate import and reassessment
-- dashboard
-- candidate detail
-- project deletion
-- candidate editing
-- candidate deletion
-- project budget editing
-- Alembic migrations
-- test coverage for the main backend flows
-
-### Phase 2
-
-Phase 2 compare MVP is active:
-
-- manual compare-set selection
-- grouped shortlist comparison
-- compare explanation and tradeoff output
-- compare context from dashboard and candidate detail
-- LLM-assisted compare briefing
-
-### Phase 2.5
-
-Phase 2.5 is partially active:
-
-- compare page already has an agent-style briefing layer
-- the next likely work in this area is stronger guidance and evidence-backed explanation
-
-## Evidence, Benchmark, And Commute Roadmap
-
-The next evidence-related work should not be treated as one generic "RAG" project.
-
-It should be split into three tracks.
-
-### 1. Benchmark Layer
-
-Source:
-
-- `document/SDU_median_rents.pdf`
-
-Current finding:
-
-- this PDF yields extractable text
-- but it is specifically about subdivided units
-- and the document itself says it is for general reference only
-
-What this means:
-
-- this should **not** be treated as a universal market-rent truth source
-- it should become a **structured benchmark layer**, not generic vector RAG
-- it is suitable only as a narrow SDU benchmark, not as a general district rent benchmark for all listings
-
-Recommended use:
-
-- candidate detail cost context
-- compare support note
-- light dashboard benchmark hint
-
-Recommended order:
-
-1. extract district-level benchmark data
-2. store it as structured data
-3. build a `BenchmarkService`
-4. detect whether a candidate is likely an SDU using rules first and LLM support second
-5. use it only when the candidate type and context make the benchmark meaningful
-
-Current implementation status:
-
-- benchmark evidence MVP is active on candidate detail and compare
-- benchmark data is currently served from a versioned local structured data file, not a database table yet
-- likely SDU now uses rules plus extraction support
-
-Recommended benchmark rules:
-
-- first version matching can stay at the district level
-- benchmark should only be shown when the candidate has a district
-- benchmark should only be shown when the candidate is likely an SDU
-- benchmark should keep an explicit disclaimer:
-  - for subdivided units only
-  - general reference only
-  - not property-specific
-
-What not to do:
-
-- do not use RAG for this benchmark lookup path
-- do not show this benchmark for every listing by default
-- do not feed benchmark data directly into the main assessment or hidden compare score
-
-### 2. Tenancy Evidence Layer
-
-Source:
-
-- `document/AGuideToTenancy_ch.pdf`
-
-Current finding:
-
-- simple PDF extraction returns no usable text
-- this strongly suggests the PDF is scan-heavy or image-based
-
-What this means:
-
-- this source is **not ready for text RAG yet**
-- OCR is a prerequisite
-- even after OCR, this should be treated as a narrow explanation-support retrieval layer, not as a main scoring engine
-
-Recommended use after OCR:
-
-- candidate detail clause explanation
-- compare briefing evidence note
-- future agent guidance support
-
-Recommended order:
-
-1. add OCR
-2. inspect OCR quality manually
-3. chunk only after the text is acceptable
-4. add narrow retrieval for explanation support
-
-Current OCR integration shape:
-
-- OCR belongs in candidate import, not in a separate standalone tool
-- users can upload multiple listing, chat, or contract screenshots at once
-- OCR output is preserved as source evidence and also merged into the same text bundle used by extraction and assessment
-- file storage is abstracted so local development can use filesystem storage now while future deployment can move to object storage without rewriting the analysis flow
-- The current backend routes OCR through one service abstraction, so `rapidocr` can stay the fast default while `paddleocr` remains an explicit fallback without changing the import pipeline.
-- The default OCR settings now bias toward speed for screenshot-style inputs by disabling document orientation, unwarping, and textline-orientation passes unless you explicitly turn them back on in the backend environment.
-- Import no longer waits for OCR and LLM assessment to finish inside one request. The candidate is created first, then OCR and assessment continue in an in-app background task while the detail page polls for progress.
-- OCR performance is now improved in three practical ways: the default provider uses RapidOCR on ONNX Runtime for lower CPU overhead, the OCR engine is prewarmed on backend startup, and large uploaded images are resized before OCR.
-- If you still use the optional Paddle fallback and see a Windows shell line about a pattern or file not being found while PaddleOCR starts, that message is not emitted by the RentWise codebase itself. It appears to come from the Windows shell or a lower-level dependency layer rather than from our application logging.
-
-Likely value of RAG here:
-
-- explain why a clause or tenancy issue matters
-- support a candidate detail evidence note
-- support compare briefing rationale
-
-What RAG is unlikely to do well here:
-
-- replace structured extraction
-- provide stable legal conclusions
-- act as a universal answer engine for every housing question
-
-### 3. Commute Support Layer
-
-Current direction:
-
-- single-destination commute support is the approved first shape
-- commute remains support evidence, not a hidden scoring engine
-
-Project-level model needed:
-
-- commute enabled flag
-- destination label
-- destination query
-- commute mode
-- max commute minutes
-
-Candidate-level model needed:
-
-- address text
-- building name
-- nearest station
-- location confidence
-- location source
-
-Recommended interaction:
-
-- project commute setup is optional, not required at creation time
-- candidate location should be extraction-first with user correction when needed
-- candidate detail and compare can show commute evidence only when destination and location inputs are strong enough
-
-Recommended order:
-
-1. add project-level commute configuration
-2. add candidate-level location evidence
-3. update extraction to draft location evidence
-4. let users correct location evidence in candidate editing
-5. add a narrow map-backed `CommuteService`
-6. surface commute evidence in candidate detail and compare
-
-What not to do:
-
-- do not treat district-only data as sufficient for commute estimation
-- do not connect map capability before the location model exists
-- do not add commute minutes into the main compare score in the first version
-
-## Current Recommendation For The Team
-
-If the team wants to improve the product without bloating it, the best order is:
-
-1. keep reducing information duplication in the current UI
-2. add the SDU benchmark layer from the median-rent PDF as structured benchmark data
-3. decide whether OCR for the tenancy guide is worth the dependency cost, then only add narrow retrieval if the OCR quality is acceptable
-4. add commute only after the project and candidate location models are in place
-
-This is the most honest order.
-
-It keeps the decision workflow stable while adding evidence where it is actually useful.
+---
 
 ## Testing
 
-Fast local suite:
-
 ```bash
+# Backend
 cd backend
-python -m unittest discover -s tests -p "test_*.py"
+pytest                    # unit + integration
+pytest tests/unit/        # unit only (faster)
+
+# Frontend
+cd frontend
+npm run lint
+npx next build            # type check + production build
 ```
 
-Real PostgreSQL-backed integration flow:
+Integration tests require `DATABASE_URL` to point at a real PostgreSQL
+instance. Unit tests are DB-free.
 
-```bash
-cd backend
-set RUN_DB_INTEGRATION=1
-.\venv\Scripts\python.exe -m unittest tests.integration.test_db_flow
-```
+---
 
-The DB-backed test covers:
+## Data safety
 
-- register
-- create project
-- import candidate
-- fetch dashboard
+- Passwords: bcrypt.
+- JWT: HS256, signed with `SECRET_KEY`.
+- Candidate source files: stored under the user+project namespace; access
+  requires the user's JWT.
+- No third-party tracking. LLM requests go directly from the backend to
+  OpenAI/Anthropic with the user's prompt; no data brokering layer.
 
-The current test suite also covers:
+---
 
-- action-oriented priority ranking
-- investigation checklist generation
-- top-level candidate recommendation
-- compare grouping and compare explanation output
-- compare route response shape
-- compare briefing fallback behavior
-- grouped investigation checklist behavior
-- OCR service parsing
-- benchmark lookup behavior
+## Evidence layers
 
-## Team Review Notes
+| Layer | Status | Notes |
+|---|---|---|
+| SDU rent benchmark | Active | District × size rent bands from a bundled JSON (HK SDU survey data) |
+| Cost breakdown | Active | Rent + management + rates + estimated utilities |
+| Clause flags | Active | Deposit, early termination, agency fee, repairs, pets |
+| Investigation items | Active | Per-candidate open questions |
+| Commute evidence | **Designed, not yet implemented** | See `docs/superpowers/specs/2026-04-05-single-destination-commute-design.md` |
+| Tenancy-law RAG | Roadmap | Retrieval over HK Landlord & Tenant Ordinance |
 
-Two current product truths are worth keeping in mind during review:
+---
 
-1. More analysis output does not automatically produce better decisions.
-   - The product is strongest when the user can tell what to do next within a few seconds.
+## Phase status
 
-2. External evidence should support trust, not create fake precision.
-   - benchmark data should stay scoped
-   - tenancy guide support should wait for OCR
-   - commute should wait for a real location model
+- **Phase 1** — Candidate pool, extraction, import, dashboard. Complete.
+- **Phase 2** — Per-candidate assessment (benchmark, cost, clauses, priority),
+  compare view with briefing, investigation items. Complete.
+- **Phase 2.5** — Agent refinements, better extraction for messy inputs,
+  compare-briefing polish. Active in this submission.
+- **Phase 3** — Commute evidence, UI redesign, tenancy-law RAG. Planned; see
+  design docs under `docs/`.
+
+---
+
+## Deployment (reference)
+
+The project deploys cleanly on:
+
+- **Frontend**: Vercel (Next.js App Router).
+- **Backend**: Render / Railway / Fly.io (uvicorn + Alembic migrate on start).
+- **Database**: Neon or Supabase (PostgreSQL with async-friendly connection string).
+
+Set `ALLOWED_ORIGINS` on the backend to the frontend's deployed URL and
+`NEXT_PUBLIC_API_BASE_URL` on the frontend to the backend's deployed URL.
+
+---
+
+## Docs
+
+- `docs/overview.md` — product overview
+- `docs/architecture.md` — high-level architecture
+- `docs/data-model.md` — database schema
+- `docs/api-design.md` — REST API contract
+- `docs/ai-features.md` — how the LLM is used across services
+- `docs/presentation-notes.md` — submission presentation notes
+- `docs/refactor/implementation-spec-v2.md` — internal refactor spec
+- `docs/superpowers/specs/2026-04-05-single-destination-commute-design.md` — commute feature design (not yet implemented in this submission)
+
+---
+
+## License
+
+Coursework submission. All rights reserved by the author.
