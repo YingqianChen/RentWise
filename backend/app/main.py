@@ -4,9 +4,11 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .api.v1 import api_router
 from .core.config import settings
+from .db.database import get_engine
 from .services.ocr_service import OCRService
 
 
@@ -44,5 +46,12 @@ async def warmup_services() -> None:
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "environment": settings.APP_ENV}
+    """Health check endpoint — also verifies the database connection."""
+    try:
+        engine = get_engine()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected", "environment": settings.APP_ENV}
+    except Exception as exc:
+        logger.error("Health check failed — database unreachable: %s", exc)
+        return {"status": "unhealthy", "database": "disconnected", "error": str(exc)}
