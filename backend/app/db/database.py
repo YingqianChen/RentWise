@@ -41,6 +41,8 @@ def get_engine():
             settings.DATABASE_URL,
             echo=settings.APP_ENV == "development",
             future=True,
+            pool_recycle=300,     # recycle connections every 5 min (prevents stale connections)
+            pool_pre_ping=True,   # test connection before using it
         )
     return _engine
 
